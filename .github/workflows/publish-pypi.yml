@@ -1,0 +1,58 @@
+# Publish traderail to PyPI when a version tag is pushed.
+#
+# 1. Bump __version__ in python/traderail/__init__.py (the only version source)
+# 2. Commit, then: git tag v1.0.1 && git push origin v1.0.1
+#
+# The tag must match __version__ (v1.0.1 → 1.0.1) or this workflow fails
+# before uploading. Requires repo secret PYPI_API_TOKEN.
+
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/traderail/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify tag matches package version
+        working-directory: python
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os, pathlib, re, sys
+          tag = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          text = pathlib.Path("traderail/__init__.py").read_text()
+          match = re.search(r'__version__\s*=\s*["\']([^"\']+)', text)
+          version = match.group(1) if match else ""
+          print(f"tag={tag} __version__={version}")
+          if tag != version:
+              sys.exit(f"tag v{tag} does not match __version__ {version}")
+          PY
+
+      - name: Build
+        working-directory: python
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: python/dist
+          attestations: false
