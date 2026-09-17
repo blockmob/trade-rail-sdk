@@ -30,8 +30,8 @@ Full method list and the REST reference: **https://traderail.cloud/docs.html**
 
 ## Methods
 `ping` · `connect` · `check_connect` · `account_summary` · `quote` · `symbol_list` · `symbols` ·
-`price_history` · `opened_orders` · `order_send` · `order_modify` · `order_close` · `order_cancel` ·
-`order_history` · `order_history_paginated` · `trade_stats` · `equity_history` ·
+`price_history` · `tick_history` · `opened_orders` · `order_send` · `order_modify` · `order_close` · `order_cancel` · `order_close_by` ·
+`order_history` · `order_history_paginated` · `history_deals_by_position` · `pending_order_history` · `trade_stats` · `equity_history` ·
 `bulk_order` · `bulk_close`
 
 Errors raise `TradeRailError` (HTTP errors and broker-rejected trades).

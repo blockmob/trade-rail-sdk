@@ -1,6 +1,6 @@
 {
   "name": "traderail",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Official JavaScript/Node SDK for the TradeRail managed MetaTrader 5 (MT5) API.",
   "type": "module",
   "main": "src/index.js",

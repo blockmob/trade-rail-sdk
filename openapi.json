@@ -247,6 +247,73 @@
         }
       }
     },
+    "/v1/OrderCloseByTask": {
+      "get": {
+        "tags": ["Trading"],
+        "summary": "Close a position by an opposite position (Close-By)",
+        "description": "Close a position using an opposite position on the same symbol (MT5 Close-By). Both must be open, opposite-direction positions on the same symbol. Hedging accounts only.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "ticket", "in": "query", "required": true, "description": "Position ticket to close.", "schema": { "type": "integer", "example": 408815223 } },
+          { "name": "closeByTicket", "in": "query", "required": true, "description": "Opposite position ticket used to close it.", "schema": { "type": "integer", "example": 408815301 } }
+        ],
+        "responses": {
+          "200": { "description": "Trade result, or a trade-error object on rejection.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TradeResult" }, "example": { "retcode": 10009, "code": "OK", "comment": "Request executed" } } } },
+          "400": { "$ref": "#/components/responses/MissingId" }
+        }
+      }
+    },
+    "/v1/HistoryDealsByPositionId": {
+      "get": {
+        "tags": ["History & Analytics"],
+        "summary": "Deals by position id",
+        "description": "Every deal belonging to one position id (the entry plus any partial/full exits).",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "positionId", "in": "query", "required": true, "description": "Position id (also accepts ticket).", "schema": { "type": "integer", "example": 408815223 } }
+        ],
+        "responses": {
+          "200": { "description": "Deals for the position.", "content": { "application/json": { "example": [{ "ticket": 408815224, "order": 408815223, "position": 408815223, "time": 1789194422, "type": "Buy", "entry": "In", "symbol": "XAUUSD", "volume": 0.10, "price": 2361.35, "commission": -0.7, "swap": 0, "profit": 0 }] } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/PendingOrderHistory": {
+      "get": {
+        "tags": ["History & Analytics"],
+        "summary": "Pending-order history",
+        "description": "History of pending (limit/stop) orders over a window — placed, then filled, cancelled, or expired.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "from", "in": "query", "required": false, "description": "Window start — epoch seconds/ms or UTC ISO datetime (default: 90 days back).", "schema": { "type": "string" } },
+          { "name": "to", "in": "query", "required": false, "description": "Window end (default: now).", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Pending orders in history.", "content": { "application/json": { "example": [{ "ticket": 408820011, "symbol": "XAUUSD", "type": "BuyLimit", "state": "canceled", "volume_initial": 0.10, "price_open": 2350.0, "sl": 0, "tp": 0, "time_setup": 1789190000, "time_done": 1789194000 }] } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/TickHistory": {
+      "get": {
+        "tags": ["Market Data"],
+        "summary": "Tick history",
+        "description": "Raw ticks (bid/ask/last) for a symbol over a from/to window. Ticks can be voluminous — keep the window tight.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "$ref": "#/components/parameters/SymbolRequired" },
+          { "name": "from", "in": "query", "required": false, "description": "Window start — epoch seconds/ms or UTC ISO datetime (default: 1 day back).", "schema": { "type": "string" } },
+          { "name": "to", "in": "query", "required": false, "description": "Window end (default: now).", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Ticks for the symbol.", "content": { "application/json": { "example": { "symbol": "XAUUSD", "ticks": [{ "time": 1789194422, "time_msc": 1789194422123, "bid": 2361.02, "ask": 2361.35, "last": 2361.2, "volume": 0, "flags": 6 }] } } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
     "/v1/OrderHistory": {
       "get": {
         "tags": ["History & Analytics"],

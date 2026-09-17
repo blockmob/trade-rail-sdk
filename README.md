@@ -96,9 +96,9 @@ Both are issued when your account is provisioned. You can view and rotate them i
 ## Endpoints
 
 **Accounts & sessions** — `ConnectEx` · `ConnectByToken` · `Reconnect` · `CheckConnect` · `AccountSummary`
-**Market data** — `GetQuote` · `SymbolList` · `Symbols` · `PriceHistoryEx`
-**Trading** (DEMO-only by default) — `OpenedOrders` · `OrderSendTask` · `OrderModifyTask` · `OrderCloseTask` · `OrderCancelTask`
-**History & analytics** — `OrderHistory` · `OrderHistoryPagination` · `TradeStats` · `EquityHistory`
+**Market data** — `GetQuote` · `SymbolList` · `Symbols` · `PriceHistoryEx` · `TickHistory`
+**Trading** (DEMO-only by default) — `OpenedOrders` · `OrderSendTask` · `OrderModifyTask` · `OrderCloseTask` · `OrderCancelTask` · `OrderCloseByTask`
+**History & analytics** — `OrderHistory` · `OrderHistoryPagination` · `HistoryDealsByPositionId` · `PendingOrderHistory` · `TradeStats` · `EquityHistory`
 **Copy-trade** (Bearer) — `POST /orchestrator/bulk-order` · `POST /orchestrator/bulk-close`
 **Real-time** (Bearer) — `wss://api.traderail.cloud/events`
 

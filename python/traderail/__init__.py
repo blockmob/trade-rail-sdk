@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import requests
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __all__ = ["TradeRail", "TradeRailError"]
 
 DEFAULT_BASE_URL = "https://api.traderail.cloud"
@@ -162,6 +162,11 @@ class TradeRail:
         """Cancel (delete) a pending order by ticket."""
         return self._get("/v1/OrderCancelTask", {"id": account, "ticket": ticket})
 
+    def order_close_by(self, account, ticket: int, close_by_ticket: int) -> dict:
+        """Close a position by an opposite position on the same symbol (hedging accounts only)."""
+        return self._get("/v1/OrderCloseByTask",
+                         {"id": account, "ticket": ticket, "closeByTicket": close_by_ticket})
+
     # -- history & analytics -------------------------------------------------
     def order_history(self, account) -> dict:
         """Reconstructed closed trades over the default look-back window (newest first)."""
@@ -182,6 +187,18 @@ class TradeRail:
     def equity_history(self, account, from_=None) -> dict:
         """Equity / balance series reconstructed from deal history (equity-curve data)."""
         return self._get("/v1/EquityHistory", {"id": account, "from": from_})
+
+    def history_deals_by_position(self, account, position_id: int) -> list:
+        """Every deal belonging to one position id."""
+        return self._get("/v1/HistoryDealsByPositionId", {"id": account, "positionId": position_id})
+
+    def pending_order_history(self, account, from_=None, to=None) -> list:
+        """History of pending (limit/stop) orders over a window (epoch seconds / ISO)."""
+        return self._get("/v1/PendingOrderHistory", {"id": account, "from": from_, "to": to})
+
+    def tick_history(self, account, symbol: str, from_=None, to=None) -> dict:
+        """Raw ticks for a symbol over a [from, to] window (epoch seconds / ISO)."""
+        return self._get("/v1/TickHistory", {"id": account, "symbol": symbol, "from": from_, "to": to})
 
     # -- copy-trade (needs a bearer token) -----------------------------------
     def bulk_order(self, operation: str, symbol: str, volume: float, sl: float | None = None,

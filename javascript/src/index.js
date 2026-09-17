@@ -120,6 +120,8 @@ export class TradeRail {
   }
   /** Cancel (delete) a pending order by ticket. */
   orderCancel(account, ticket) { return this.#get('/v1/OrderCancelTask', { id: account, ticket }) }
+  /** Close a position by an opposite position on the same symbol (hedging accounts only). */
+  orderCloseBy(account, ticket, closeByTicket) { return this.#get('/v1/OrderCloseByTask', { id: account, ticket, closeByTicket }) }
 
   // -- history & analytics --------------------------------------------------
   orderHistory(account) { return this.#get('/v1/OrderHistory', { id: account }) }
@@ -130,6 +132,12 @@ export class TradeRail {
   }
   tradeStats(account, { from } = {}) { return this.#get('/v1/TradeStats', { id: account, from }) }
   equityHistory(account, { from } = {}) { return this.#get('/v1/EquityHistory', { id: account, from }) }
+  /** Every deal belonging to one position id. */
+  historyDealsByPosition(account, positionId) { return this.#get('/v1/HistoryDealsByPositionId', { id: account, positionId }) }
+  /** History of pending (limit/stop) orders over a window. */
+  pendingOrderHistory(account, { from, to } = {}) { return this.#get('/v1/PendingOrderHistory', { id: account, from, to }) }
+  /** Raw ticks for a symbol over a window (epoch seconds / ISO). */
+  tickHistory(account, symbol, { from, to } = {}) { return this.#get('/v1/TickHistory', { id: account, symbol, from, to }) }
 
   // -- copy-trade (needs a bearer token) -----------------------------------
   /** Fire ONE market order across many accounts. Omit logins => every connected account. */
