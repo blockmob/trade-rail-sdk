@@ -1,0 +1,30 @@
+{
+  "name": "traderail",
+  "version": "1.0.0",
+  "description": "Official JavaScript/Node SDK for the TradeRail managed MetaTrader 5 (MT5) API.",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "example": "node examples/quickstart.js"
+  },
+  "keywords": [
+    "mt5",
+    "metatrader",
+    "metatrader5",
+    "trading",
+    "forex",
+    "trading-api",
+    "copy-trading"
+  ],
+  "homepage": "https://traderail.cloud",
+  "license": "MIT",
+  "author": "TradeRail"
+}

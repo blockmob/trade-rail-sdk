@@ -1,0 +1,607 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TradeRail MT5 API",
+    "version": "1.0.0",
+    "description": "The managed MT5 API — accounts, market data, orders, history, and real-time events across every MT5 account, through one clean API. Trading is DEMO-only by default."
+  },
+  "servers": [{ "url": "https://api.traderail.cloud", "description": "Production" }],
+  "tags": [
+    { "name": "Accounts & Sessions", "description": "Open a session, confirm connectivity, and read account state." },
+    { "name": "Market Data", "description": "Live quotes, symbol specs, and OHLC price history." },
+    { "name": "Trading", "description": "Open positions, and place / modify / close orders (DEMO-only by default)." },
+    { "name": "History & Analytics", "description": "Closed-trade history, paginated windows, and reconstructed equity / statistics." },
+    { "name": "Copy-Trade", "description": "Fan one order out to many accounts at once — provisioning and bulk trading (Bearer auth)." },
+    { "name": "Real-Time", "description": "The WebSocket event stream: quotes and trade events, keyed by account (Bearer auth)." },
+    { "name": "System", "description": "Health and connectivity." }
+  ],
+  "security": [{ "ApiKey": [] }],
+  "paths": {
+    "/v1/ConnectEx": {
+      "get": {
+        "tags": ["Accounts & Sessions"],
+        "summary": "Open (or confirm) a session",
+        "description": "Confirms an account is connected and returns its `acct-<login>` session token — the selector you pass as `?id=` on every later call. Accounts are normally stood up for you at provisioning; `password` / `server` are only needed to auto-start a not-yet-running terminal.",
+        "parameters": [
+          { "name": "user", "in": "query", "required": true, "description": "MT5 account login (the account number).", "schema": { "type": "integer", "example": 5012345678 } },
+          { "name": "password", "in": "query", "required": false, "description": "Account password — provisioning only; used once to log in, then scrubbed. Never logged.", "schema": { "type": "string" } },
+          { "name": "server", "in": "query", "required": false, "description": "Broker trade-server name, exactly as shown in the terminal.", "schema": { "type": "string", "example": "PUPrime-Live" } },
+          { "name": "symbol", "in": "query", "required": false, "description": "Optional startup-chart symbol to pin; otherwise resolved per broker.", "schema": { "type": "string", "example": "XAUUSD" } }
+        ],
+        "responses": {
+          "200": { "description": "Connected — plain-text session token.", "content": { "text/plain": { "schema": { "type": "string", "example": "acct-5012345678" } } } },
+          "405": { "$ref": "#/components/responses/ConnectFailed" }
+        }
+      }
+    },
+    "/v1/ConnectByToken": {
+      "get": {
+        "tags": ["Accounts & Sessions"],
+        "summary": "Validate a session token",
+        "description": "Returns `{ code: OK }` when the account is connected, or `{ code: INVALID_TOKEN }` so a client can trigger session recovery.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": { "200": { "description": "Token status.", "content": { "application/json": { "example": { "code": "OK" } } } } }
+      }
+    },
+    "/v1/Reconnect": {
+      "get": {
+        "tags": ["Accounts & Sessions"],
+        "summary": "Re-affirm a session",
+        "description": "Returns the terminal instance token when the account is connected.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": { "description": "Connected.", "content": { "application/json": { "example": { "code": "OK", "terminalInstanceGuid": "acct-5012345678" } } } },
+          "405": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/CheckConnect": {
+      "get": {
+        "tags": ["Accounts & Sessions"],
+        "summary": "Liveness check",
+        "description": "Lightweight per-session liveness check; plain-text `ok` when connected.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": { "description": "Connected.", "content": { "text/plain": { "schema": { "type": "string", "example": "ok" } } } },
+          "403": { "description": "Account not connected." }
+        }
+      }
+    },
+    "/v1/AccountSummary": {
+      "get": {
+        "tags": ["Accounts & Sessions"],
+        "summary": "Account summary",
+        "description": "Balance, equity, margin, and free margin for one account — read live from the terminal.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": {
+            "description": "Account summary.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSummary" }, "example": { "login": 5012345678, "currency": "USD", "balance": 25040.18, "equity": 25218.44, "margin": 512.30, "freeMargin": 24706.14, "marginLevel": 4922.6, "leverage": 500, "profit": 178.26, "company": "PU Prime", "server": "PUPrime-Live" } } }
+          },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/AccountDetails": {
+      "get": {
+        "tags": ["Accounts & Sessions"],
+        "summary": "Server time-zone details",
+        "description": "The bridge emits UTC epoch times, so all server-time offsets are zero — no client-side correction is needed.",
+        "responses": { "200": { "description": "Time-zone details.", "content": { "application/json": { "example": { "serverTimeZone": 0, "serverTimeZoneInMinutes": 0, "utcOffsetMinutes": 0 } } } } }
+      }
+    },
+    "/v1/GetQuote": {
+      "get": {
+        "tags": ["Market Data"],
+        "summary": "Live quote",
+        "description": "The latest bid / ask / last for a symbol. Send a base symbol; it is resolved to the broker's exact name automatically.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "$ref": "#/components/parameters/SymbolRequired" }
+        ],
+        "responses": {
+          "200": { "description": "Quote.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Quote" }, "example": { "bid": 2361.02, "ask": 2361.35, "last": 2361.20 } } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/SymbolList": {
+      "get": {
+        "tags": ["Market Data"],
+        "summary": "Symbol names",
+        "description": "Every symbol name available on the account. Some brokers expose 10k+ symbols.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": { "description": "Symbol names.", "content": { "application/json": { "schema": { "type": "array", "items": { "type": "string" } }, "example": ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "BTCUSDT"] } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/Symbols": {
+      "get": {
+        "tags": ["Market Data"],
+        "summary": "Symbol specs",
+        "description": "A map of symbol name → specification (digits, point, tick size, volume limits, currencies) for the account.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": {
+            "description": "Symbol specs.",
+            "content": { "application/json": { "example": { "XAUUSD": { "symbol": "XAUUSD", "description": "Gold vs US Dollar", "digits": 2, "point": 0.01, "tickSize": 0.01, "currencyBase": "XAU", "currencyProfit": "USD", "volumeMin": 0.01, "volumeMax": 100, "volumeStep": 0.01 } } } }
+          },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/PriceHistoryEx": {
+      "get": {
+        "tags": ["Market Data"],
+        "summary": "OHLC price history",
+        "description": "Historical OHLC bars for a symbol — the data behind charts. Returns the most-recent `numBars`, oldest → newest.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "$ref": "#/components/parameters/SymbolRequired" },
+          { "name": "timeFrame", "in": "query", "required": false, "description": "Bar timeframe in MINUTES (e.g. 1, 5, 15, 30, 60, 240, 1440); snapped to the nearest MT5 period.", "schema": { "type": "integer", "default": 30, "example": 15 } },
+          { "name": "numBars", "in": "query", "required": false, "description": "Most-recent bars to return (default 100, max 5000).", "schema": { "type": "integer", "default": 100, "example": 100 } }
+        ],
+        "responses": {
+          "200": { "description": "OHLC bars.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Bar" } }, "example": [{ "time": "2026-09-10T14:00:00", "open": 2360.10, "high": 2362.40, "low": 2359.70, "close": 2361.35, "volume": 1843 }] } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/OpenedOrders": {
+      "get": {
+        "tags": ["Trading"],
+        "summary": "Open positions & pending orders",
+        "description": "Everything currently working on the account — open positions with live P/L, and pending (not-yet-filled) orders.",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": {
+            "description": "Open positions and pending orders.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenedOrders" }, "example": { "positionInfos": [{ "ticket": 408815223, "symbol": "XAUUSD", "type": "Buy", "volume": 0.10, "openPrice": 2361.35, "priceCurrent": 2363.12, "sl": 2352.00, "tp": 2378.00, "swap": -0.42, "profit": 17.70, "magic": 700123, "comment": "cq-8f2a41", "openTime": "2026-09-10T09:41:22Z" }], "openedOrders": [{ "ticket": 408820011, "symbol": "XAUUSD", "type": "BuyLimit", "volume": 0.10, "openPrice": 2350.00, "sl": 0, "tp": 0, "comment": "" }] } } }
+          },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/OrderSendTask": {
+      "get": {
+        "tags": ["Trading"],
+        "summary": "Place an order",
+        "description": "Send a market or pending order. Set `operation` to `Buy`/`Sell` for a market order, or `BuyLimit`/`SellLimit`/`BuyStop`/`SellStop`/`BuyStopLimit`/`SellStopLimit` for a pending order (which also needs `price`). A rejected trade returns `200` with `{ code: ERROR }`. Trading is DEMO-only by default.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "operation", "in": "query", "required": true, "description": "Buy, Sell, or a pending type (BuyLimit / SellLimit / BuyStop / SellStop / BuyStopLimit / SellStopLimit).", "schema": { "type": "string", "example": "Buy" } },
+          { "$ref": "#/components/parameters/SymbolRequired" },
+          { "name": "volume", "in": "query", "required": true, "description": "Order volume in lots.", "schema": { "type": "number", "example": 0.10 } },
+          { "name": "stoploss", "in": "query", "required": false, "description": "Stop-loss price.", "schema": { "type": "number", "example": 2352.00 } },
+          { "name": "takeprofit", "in": "query", "required": false, "description": "Take-profit price.", "schema": { "type": "number", "example": 2378.00 } },
+          { "name": "price", "in": "query", "required": false, "description": "Entry price (pending orders only).", "schema": { "type": "number" } },
+          { "name": "slippage", "in": "query", "required": false, "description": "Max price deviation in points.", "schema": { "type": "number" } },
+          { "name": "expertID", "in": "query", "required": false, "description": "Magic / expert id (also `expertId` or `magic`).", "schema": { "type": "number", "example": 700123 } },
+          { "name": "comment", "in": "query", "required": false, "description": "Order comment.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trade result on success, or a trade-error object on rejection.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TradeResult" }, "example": { "ticket": 408815223, "order": 408815223, "deal": 408815224, "volume": 0.10, "price": 2361.35, "retcode": 10009, "code": "OK", "comment": "Request executed" } } }
+          },
+          "400": { "$ref": "#/components/responses/MissingId" }
+        }
+      }
+    },
+    "/v1/OrderModifyTask": {
+      "get": {
+        "tags": ["Trading"],
+        "summary": "Modify an order",
+        "description": "Change the stop-loss / take-profit of a position, or the entry / stop-limit price of a pending order, by ticket.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "ticket", "in": "query", "required": true, "description": "Order / position ticket to modify.", "schema": { "type": "integer", "example": 408815223 } },
+          { "name": "stoploss", "in": "query", "required": false, "description": "New stop-loss price.", "schema": { "type": "number", "example": 2355.00 } },
+          { "name": "takeprofit", "in": "query", "required": false, "description": "New take-profit price.", "schema": { "type": "number", "example": 2380.00 } },
+          { "name": "price", "in": "query", "required": false, "description": "New entry price (pending orders).", "schema": { "type": "number" } }
+        ],
+        "responses": {
+          "200": { "description": "Trade result, or a trade-error object on rejection.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TradeResult" }, "example": { "ticket": 408815223, "retcode": 10009, "code": "OK", "comment": "Request executed" } } } },
+          "400": { "$ref": "#/components/responses/MissingId" }
+        }
+      }
+    },
+    "/v1/OrderCloseTask": {
+      "get": {
+        "tags": ["Trading"],
+        "summary": "Close an order",
+        "description": "Close a position fully, or partially by passing `lots` smaller than the open volume.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "ticket", "in": "query", "required": true, "description": "Position ticket to close.", "schema": { "type": "integer", "example": 408815223 } },
+          { "name": "lots", "in": "query", "required": false, "description": "Volume in lots to close; omit for a full close.", "schema": { "type": "number", "example": 0.10 } },
+          { "name": "slippage", "in": "query", "required": false, "description": "Max price deviation in points.", "schema": { "type": "number" } }
+        ],
+        "responses": {
+          "200": { "description": "Trade result, or a trade-error object on rejection.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TradeResult" }, "example": { "ticket": 408815223, "deal": 408815999, "volume": 0.10, "price": 2378.00, "retcode": 10009, "code": "OK", "comment": "Request executed" } } } },
+          "400": { "$ref": "#/components/responses/MissingId" }
+        }
+      }
+    },
+    "/v1/OrderHistory": {
+      "get": {
+        "tags": ["History & Analytics"],
+        "summary": "Closed-trade history",
+        "description": "Reconstructed closed trades over the default look-back window (most recent 1000, newest first).",
+        "parameters": [{ "$ref": "#/components/parameters/IdParam" }],
+        "responses": {
+          "200": { "description": "Closed trades.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderHistory" }, "example": { "orderHistory": [{ "ticket": 408815223, "symbol": "XAUUSD", "type": "Buy", "lots": 0.10, "openPrice": 2361.35, "closePrice": 2378.00, "profit": 164.00, "openTime": "2026-09-08T11:02:00Z", "closeTime": "2026-09-09T14:20:00Z" }] } } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/OrderHistoryPagination": {
+      "get": {
+        "tags": ["History & Analytics"],
+        "summary": "Paginated closed-trade history",
+        "description": "Sortable, paginated closed trades over a `from`/`to` window.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "from", "in": "query", "required": false, "description": "Window start — epoch seconds/ms or UTC ISO datetime. Defaults to the look-back window.", "schema": { "type": "string", "example": "2026-08-01T00:00:00" } },
+          { "name": "to", "in": "query", "required": false, "description": "Window end — epoch seconds/ms or UTC ISO datetime. Defaults to now.", "schema": { "type": "string" } },
+          { "name": "sort", "in": "query", "required": false, "description": "Sort field (default CloseTime).", "schema": { "type": "string", "example": "CloseTime" } },
+          { "name": "ascending", "in": "query", "required": false, "description": "Sort ascending when true (default false).", "schema": { "type": "boolean" } },
+          { "name": "pageNumber", "in": "query", "required": false, "description": "Zero-based page index (default 0).", "schema": { "type": "integer", "default": 0 } },
+          { "name": "ordersPerPage", "in": "query", "required": false, "description": "Page size, 1–1000 (default 100).", "schema": { "type": "integer", "default": 100 } }
+        ],
+        "responses": {
+          "200": { "description": "One page of closed trades.", "content": { "application/json": { "example": { "pagesCount": 3, "pageNumber": 0, "itemsPerPage": 100, "orders": [{ "ticket": 408815223, "symbol": "XAUUSD", "type": "Buy", "lots": 0.10, "profit": 164.00, "closeTime": "2026-09-09T14:20:00Z" }] } } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/TradeStats": {
+      "get": {
+        "tags": ["History & Analytics"],
+        "summary": "Trade statistics",
+        "description": "Aggregate statistics (win rate, profit factor, totals, and more) reconstructed from the deal history.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "from", "in": "query", "required": false, "description": "Window start — epoch seconds/ms or UTC ISO datetime. Defaults to the look-back window.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Trade statistics.", "content": { "application/json": { "example": { "trades": 128, "wins": 79, "losses": 49, "winRate": 0.617, "profitFactor": 1.84, "netProfit": 4210.55 } } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/v1/EquityHistory": {
+      "get": {
+        "tags": ["History & Analytics"],
+        "summary": "Equity history",
+        "description": "An equity / balance series reconstructed from the deal history — the data behind an equity curve.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "from", "in": "query", "required": false, "description": "Window start — epoch seconds/ms or UTC ISO datetime. Defaults to the look-back window.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Equity series.", "content": { "application/json": { "example": { "equity": [{ "time": "2026-09-08T00:00:00Z", "value": 25040.18 }, { "time": "2026-09-09T00:00:00Z", "value": 25204.18 }] } } } },
+          "400": { "$ref": "#/components/responses/MissingId" },
+          "502": { "$ref": "#/components/responses/NotConnected" }
+        }
+      }
+    },
+    "/orchestrator/bulk-order": {
+      "post": {
+        "tags": ["Copy-Trade"],
+        "summary": "Fan one order out to many accounts",
+        "description": "Fire ONE market order (Buy/Sell) across many accounts in a single call — the copy-trade primitive. Omit `logins` to fan out to every connected account. Returns a per-account result plus totals and the total fan-out time.",
+        "security": [{ "bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkOrderRequest" }, "example": { "operation": "Buy", "symbol": "XAUUSD", "volume": 0.01, "sl": 2352.00, "tp": 2378.00 } } }
+        },
+        "responses": {
+          "200": { "description": "Per-account results.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkResult" }, "example": { "requested": 3, "ok": 3, "failed": 0, "ms": 214, "results": [{ "login": 5012345678, "symbol": "XAUUSD", "ok": true, "ticket": 408815223, "price": 2361.35 }, { "login": 7001526314, "symbol": "XAUUSD.s", "ok": true, "ticket": 118820044, "price": 2361.40 }] } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/orchestrator/bulk-close": {
+      "post": {
+        "tags": ["Copy-Trade"],
+        "summary": "Close all positions on many accounts",
+        "description": "Close every open position across many accounts in a single call. Omit `logins` to close on every connected account.",
+        "security": [{ "bearer": [] }],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkCloseRequest" }, "example": { "logins": [5012345678, 7001526314] } } }
+        },
+        "responses": {
+          "200": { "description": "Per-account close results.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BulkResult" }, "example": { "requested": 2, "ok": 2, "failed": 0, "ms": 168, "results": [{ "login": 5012345678, "ok": true, "closed": 1 }, { "login": 7001526314, "ok": true, "closed": 2 }] } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/orchestrator/connect": {
+      "post": {
+        "tags": ["Copy-Trade"],
+        "summary": "Provision an account",
+        "description": "Start (or reuse) an account's terminal and wait until its EA connects. Normally handled by TradeRail during onboarding; passwords are used once and never logged.",
+        "security": [{ "bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectRequest" }, "example": { "user": 700152426, "password": "••••••••", "server": "PUPrime-Demo" } } }
+        },
+        "responses": {
+          "200": { "description": "Terminal started/reused and the EA is connected.", "content": { "application/json": { "example": { "login": 700152426, "connected": true } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/orchestrator/disconnect": {
+      "post": {
+        "tags": ["Copy-Trade"],
+        "summary": "Stop an account's terminal",
+        "description": "Stop an account's terminal. The working folder is kept by default for a fast reconnect.",
+        "security": [{ "bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DisconnectRequest" }, "example": { "user": 700152426 } } }
+        },
+        "responses": {
+          "200": { "description": "Terminal stopped.", "content": { "application/json": { "example": { "login": 700152426, "stopped": true } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/orchestrator/status": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Connection status",
+        "description": "A snapshot of running terminals and the logins the service currently has connected.",
+        "security": [{ "bearer": [] }],
+        "responses": {
+          "200": { "description": "Status snapshot.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Status" }, "example": { "counts": { "running": 2, "connected": 2, "desired": 2, "orphans": 0 }, "connected": [5012345678, 7001526314], "desired": [5012345678, 7001526314], "orphans": [], "platform": "linux" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "tags": ["Real-Time"],
+        "summary": "WebSocket event stream (wss://api.traderail.cloud/events)",
+        "description": "A WebSocket, not a plain GET — connect with `wss://api.traderail.cloud/events`.\n\n**Authenticate** with `Authorization: Bearer <token>` or `?token=<token>`. On connect you receive `{ \"event\": \"welcome\", \"data\": { \"ok\": true } }`.\n\n**Client → server** (JSON frames):\n- `{ \"event\": \"watch\", \"data\": { \"id\": 5012345678 } }` — receive that account's trade events.\n- `{ \"event\": \"subscribe\", \"data\": { \"id\": 5012345678, \"symbols\": [\"XAUUSD\", \"EURUSD\"] } }` — also receive quotes for those symbols.\n- `{ \"event\": \"unsubscribe\" | \"unwatch\", \"data\": { \"id\": 5012345678 } }`, and `{ \"event\": \"ping\" }`.\n\n**Server → client** — every event is `{ event, accountId, data }`:\n- `quote` — `{ symbol, bid, ask, last, time }`\n- `deal` — a fill/close: `{ ticket, symbol, entry, reason, volume, price, profit, ... }` (`reason` carries TP/SL/manual on close).\n- `order` — a pending-order change: `{ ticket, symbol, transaction, type, price, volume }`.",
+        "security": [{ "bearer": [] }],
+        "responses": {
+          "101": { "description": "Switching Protocols — the WebSocket is established. (A missing or invalid token closes the socket with WS code 1008.)" }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Returns 200 while the API is serving. No authentication required.",
+        "security": [],
+        "responses": { "200": { "description": "OK.", "content": { "text/plain": { "schema": { "type": "string", "example": "ok" } } } } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": { "type": "apiKey", "in": "header", "name": "ApiKey", "description": "Your API key, issued when we provision your account. Sent on every /v1 call." },
+      "bearer": { "type": "http", "scheme": "bearer", "description": "Session token for copy-trade fan-out (/orchestrator) and the event stream (/events)." }
+    },
+    "parameters": {
+      "IdParam": { "name": "id", "in": "query", "required": true, "description": "Account selector: the `acct-<login>` session token from ConnectEx, or the bare MT5 login.", "schema": { "type": "string", "example": "acct-5012345678" } },
+      "SymbolRequired": { "name": "symbol", "in": "query", "required": true, "description": "Base symbol (e.g. XAUUSD, EURUSD); resolved to the broker's exact name.", "schema": { "type": "string", "example": "XAUUSD" } }
+    },
+    "responses": {
+      "Unauthorized": { "description": "Missing or invalid credentials.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "code": "ERROR", "message": "unauthorized" } } } },
+      "MissingId": { "description": "Missing or invalid account id.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "code": "ERROR", "message": "account id (?id=) required" } } } },
+      "NotConnected": { "description": "The account's terminal is not currently connected, or the EA call failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "code": "ERROR", "message": "account terminal not connected" } } } },
+      "ConnectFailed": { "description": "Invalid request, not connected, or connect failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "code": "NOT_CONNECTED", "message": "account 5012345678 not connected to bridge" } } } }
+    },
+    "schemas": {
+      "AccountSummary": {
+        "type": "object",
+        "description": "Compatibility aliases are also returned (e.g. `accountCompanyName`, `accountServer`).",
+        "properties": {
+          "login": { "type": "integer", "example": 5012345678 },
+          "currency": { "type": "string", "example": "USD" },
+          "balance": { "type": "number", "example": 25040.18 },
+          "equity": { "type": "number", "example": 25218.44 },
+          "margin": { "type": "number", "example": 512.30 },
+          "freeMargin": { "type": "number", "example": 24706.14 },
+          "marginLevel": { "type": "number", "example": 4922.6 },
+          "leverage": { "type": "integer", "example": 500 },
+          "profit": { "type": "number", "example": 178.26 },
+          "company": { "type": "string", "example": "PU Prime" },
+          "server": { "type": "string", "example": "PUPrime-Live" }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "bid": { "type": "number", "example": 2361.02 },
+          "ask": { "type": "number", "example": 2361.35 },
+          "last": { "type": "number", "example": 2361.20 }
+        }
+      },
+      "Bar": {
+        "type": "object",
+        "properties": {
+          "time": { "type": "string", "description": "Bar open time (broker wall-clock, ISO without zone).", "example": "2026-09-10T14:00:00" },
+          "open": { "type": "number", "example": 2360.10 },
+          "high": { "type": "number", "example": 2362.40 },
+          "low": { "type": "number", "example": 2359.70 },
+          "close": { "type": "number", "example": 2361.35 },
+          "volume": { "type": "integer", "example": 1843 }
+        }
+      },
+      "Position": {
+        "type": "object",
+        "description": "Compatibility aliases are also returned (e.g. `orderType`, `lots`, `priceOpen`, `stopLoss`, `takeProfit`).",
+        "properties": {
+          "ticket": { "type": "integer", "example": 408815223 },
+          "symbol": { "type": "string", "example": "XAUUSD" },
+          "type": { "type": "string", "enum": ["Buy", "Sell"] },
+          "volume": { "type": "number", "example": 0.10 },
+          "openPrice": { "type": "number", "example": 2361.35 },
+          "priceCurrent": { "type": "number", "example": 2363.12 },
+          "sl": { "type": "number", "example": 2352.00 },
+          "tp": { "type": "number", "example": 2378.00 },
+          "swap": { "type": "number", "example": -0.42 },
+          "profit": { "type": "number", "example": 17.70 },
+          "magic": { "type": "integer", "example": 700123 },
+          "comment": { "type": "string", "example": "cq-8f2a41" },
+          "openTime": { "type": "string", "example": "2026-09-10T09:41:22Z" }
+        }
+      },
+      "Pending": {
+        "type": "object",
+        "properties": {
+          "ticket": { "type": "integer", "example": 408820011 },
+          "symbol": { "type": "string", "example": "XAUUSD" },
+          "type": { "type": "string", "enum": ["BuyLimit", "SellLimit", "BuyStop", "SellStop", "BuyStopLimit", "SellStopLimit"] },
+          "volume": { "type": "number", "example": 0.10 },
+          "openPrice": { "type": "number", "example": 2350.00 },
+          "sl": { "type": "number", "example": 0 },
+          "tp": { "type": "number", "example": 0 },
+          "comment": { "type": "string", "example": "" }
+        }
+      },
+      "OpenedOrders": {
+        "type": "object",
+        "properties": {
+          "positionInfos": { "type": "array", "items": { "$ref": "#/components/schemas/Position" } },
+          "openedOrders": { "type": "array", "items": { "$ref": "#/components/schemas/Pending" } }
+        }
+      },
+      "ClosedTrade": {
+        "type": "object",
+        "properties": {
+          "ticket": { "type": "integer", "example": 408815223 },
+          "symbol": { "type": "string", "example": "XAUUSD" },
+          "type": { "type": "string", "example": "Buy" },
+          "lots": { "type": "number", "example": 0.10 },
+          "openPrice": { "type": "number", "example": 2361.35 },
+          "closePrice": { "type": "number", "example": 2378.00 },
+          "profit": { "type": "number", "example": 164.00 },
+          "openTime": { "type": "string", "example": "2026-09-08T11:02:00Z" },
+          "closeTime": { "type": "string", "example": "2026-09-09T14:20:00Z" }
+        }
+      },
+      "OrderHistory": {
+        "type": "object",
+        "properties": {
+          "orderHistory": { "type": "array", "items": { "$ref": "#/components/schemas/ClosedTrade" } },
+          "orders": { "type": "array", "items": { "$ref": "#/components/schemas/ClosedTrade" } }
+        }
+      },
+      "TradeResult": {
+        "type": "object",
+        "description": "On success `code` is `OK` and `ticket` > 0. On rejection the response is an Error object instead.",
+        "properties": {
+          "ticket": { "type": "integer", "example": 408815223 },
+          "order": { "type": "integer", "example": 408815223 },
+          "deal": { "type": "integer", "example": 408815224 },
+          "volume": { "type": "number", "example": 0.10 },
+          "price": { "type": "number", "example": 2361.35 },
+          "retcode": { "type": "integer", "description": "Raw MT5 return code. 10009 = done.", "example": 10009 },
+          "code": { "type": "string", "example": "OK" },
+          "comment": { "type": "string", "example": "Request executed" }
+        }
+      },
+      "BulkOrderRequest": {
+        "type": "object",
+        "required": ["operation", "symbol", "volume"],
+        "properties": {
+          "operation": { "type": "string", "enum": ["Buy", "Sell"], "example": "Buy" },
+          "symbol": { "type": "string", "description": "Base symbol; resolved per broker.", "example": "XAUUSD" },
+          "volume": { "type": "number", "description": "Volume in lots, applied to every account.", "example": 0.01 },
+          "sl": { "type": "number", "description": "Optional stop-loss price." },
+          "tp": { "type": "number", "description": "Optional take-profit price." },
+          "comment": { "type": "string", "description": "Optional order comment." },
+          "logins": { "type": "array", "items": { "type": "integer" }, "description": "Target logins; omit to fire on ALL connected accounts." }
+        }
+      },
+      "BulkCloseRequest": {
+        "type": "object",
+        "properties": {
+          "logins": { "type": "array", "items": { "type": "integer" }, "description": "Target logins; omit to close on ALL connected accounts." }
+        }
+      },
+      "BulkResult": {
+        "type": "object",
+        "properties": {
+          "requested": { "type": "integer", "example": 3 },
+          "ok": { "type": "integer", "example": 3 },
+          "failed": { "type": "integer", "example": 0 },
+          "ms": { "type": "integer", "description": "Total fan-out time in milliseconds.", "example": 214 },
+          "results": { "type": "array", "items": { "$ref": "#/components/schemas/BulkItem" } }
+        }
+      },
+      "BulkItem": {
+        "type": "object",
+        "properties": {
+          "login": { "type": "integer", "example": 5012345678 },
+          "symbol": { "type": "string", "example": "XAUUSD" },
+          "ok": { "type": "boolean", "example": true },
+          "ticket": { "type": "integer", "example": 408815223 },
+          "price": { "type": "number", "example": 2361.35 },
+          "closed": { "type": "integer", "description": "Positions closed (bulk-close).", "example": 1 },
+          "error": { "type": "string", "description": "Present when ok is false." }
+        }
+      },
+      "ConnectRequest": {
+        "type": "object",
+        "required": ["user", "password", "server"],
+        "properties": {
+          "user": { "type": "integer", "example": 700152426 },
+          "password": { "type": "string", "description": "Used once to log in, then scrubbed; never logged.", "example": "••••••••" },
+          "server": { "type": "string", "example": "PUPrime-Demo" },
+          "symbol": { "type": "string", "description": "Optional startup-chart symbol override.", "example": "XAUUSD" }
+        }
+      },
+      "DisconnectRequest": {
+        "type": "object",
+        "required": ["user"],
+        "properties": { "user": { "type": "integer", "example": 700152426 } }
+      },
+      "Status": {
+        "type": "object",
+        "properties": {
+          "counts": {
+            "type": "object",
+            "properties": {
+              "running": { "type": "integer", "example": 2 },
+              "connected": { "type": "integer", "example": 2 },
+              "desired": { "type": "integer", "example": 2 },
+              "orphans": { "type": "integer", "example": 0 }
+            }
+          },
+          "connected": { "type": "array", "items": { "type": "integer" } },
+          "desired": { "type": "array", "items": { "type": "integer" } },
+          "orphans": { "type": "array", "items": { "type": "integer" } },
+          "platform": { "type": "string", "example": "linux" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "example": "ERROR" },
+          "message": { "type": "string", "example": "account terminal not connected" }
+        }
+      }
+    }
+  }
+}

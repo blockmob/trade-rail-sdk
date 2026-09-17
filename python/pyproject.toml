@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "traderail"
+version = "1.0.0"
+description = "Official Python SDK for the TradeRail managed MetaTrader 5 (MT5) API."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "TradeRail" }]
+keywords = ["mt5", "metatrader", "metatrader5", "trading", "forex", "trading-api", "copy-trading"]
+dependencies = ["requests>=2.25"]
+
+[project.urls]
+Homepage = "https://traderail.cloud"
+Documentation = "https://traderail.cloud/docs.html"
+
+[tool.hatch.build.targets.wheel]
+packages = ["traderail"]
