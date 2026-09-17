@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import requests
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __all__ = ["TradeRail", "TradeRailError"]
 
 DEFAULT_BASE_URL = "https://api.traderail.cloud"
@@ -151,9 +151,16 @@ class TradeRail:
 
     def order_close(self, account, ticket: int, lots: float | None = None,
                     slippage: float | None = None) -> dict:
-        """Close a position fully, or partially by passing ``lots`` < the open volume."""
+        """
+        Close a position fully, or partially by passing ``lots`` < the open volume.
+        Passing a pending-order ticket cancels it.
+        """
         return self._get("/v1/OrderCloseTask", {"id": account, "ticket": ticket,
                                                  "lots": lots, "slippage": slippage})
+
+    def order_cancel(self, account, ticket: int) -> dict:
+        """Cancel (delete) a pending order by ticket."""
+        return self._get("/v1/OrderCancelTask", {"id": account, "ticket": ticket})
 
     # -- history & analytics -------------------------------------------------
     def order_history(self, account) -> dict:

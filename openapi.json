@@ -218,16 +218,31 @@
     "/v1/OrderCloseTask": {
       "get": {
         "tags": ["Trading"],
-        "summary": "Close an order",
-        "description": "Close a position fully, or partially by passing `lots` smaller than the open volume.",
+        "summary": "Close a position or cancel a pending order",
+        "description": "Close a position fully, or partially by passing `lots` smaller than the open volume. Passing a pending-order ticket cancels (removes) it.",
         "parameters": [
           { "$ref": "#/components/parameters/IdParam" },
-          { "name": "ticket", "in": "query", "required": true, "description": "Position ticket to close.", "schema": { "type": "integer", "example": 408815223 } },
+          { "name": "ticket", "in": "query", "required": true, "description": "Position ticket to close, or pending-order ticket to cancel.", "schema": { "type": "integer", "example": 408815223 } },
           { "name": "lots", "in": "query", "required": false, "description": "Volume in lots to close; omit for a full close.", "schema": { "type": "number", "example": 0.10 } },
           { "name": "slippage", "in": "query", "required": false, "description": "Max price deviation in points.", "schema": { "type": "number" } }
         ],
         "responses": {
           "200": { "description": "Trade result, or a trade-error object on rejection.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TradeResult" }, "example": { "ticket": 408815223, "deal": 408815999, "volume": 0.10, "price": 2378.00, "retcode": 10009, "code": "OK", "comment": "Request executed" } } } },
+          "400": { "$ref": "#/components/responses/MissingId" }
+        }
+      }
+    },
+    "/v1/OrderCancelTask": {
+      "get": {
+        "tags": ["Trading"],
+        "summary": "Cancel a pending order",
+        "description": "Cancel (delete) a pending order by ticket. Use `OrderCloseTask` to close an open position.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdParam" },
+          { "name": "ticket", "in": "query", "required": true, "description": "Pending-order ticket to cancel.", "schema": { "type": "integer", "example": 408820011 } }
+        ],
+        "responses": {
+          "200": { "description": "Trade result, or a trade-error object on rejection.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TradeResult" }, "example": { "ticket": 408820011, "retcode": 10009, "code": "OK", "comment": "Request executed" } } } },
           "400": { "$ref": "#/components/responses/MissingId" }
         }
       }

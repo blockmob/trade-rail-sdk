@@ -30,7 +30,7 @@ Full method list and the REST reference: **https://traderail.cloud/docs.html**
 
 ## Methods
 `ping` · `connect` · `check_connect` · `account_summary` · `quote` · `symbol_list` · `symbols` ·
-`price_history` · `opened_orders` · `order_send` · `order_modify` · `order_close` ·
+`price_history` · `opened_orders` · `order_send` · `order_modify` · `order_close` · `order_cancel` ·
 `order_history` · `order_history_paginated` · `trade_stats` · `equity_history` ·
 `bulk_order` · `bulk_close`
 

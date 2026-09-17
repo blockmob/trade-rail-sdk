@@ -114,9 +114,12 @@ export class TradeRail {
   orderModify(account, ticket, { sl, tp, price } = {}) {
     return this.#get('/v1/OrderModifyTask', { id: account, ticket, stoploss: sl, takeprofit: tp, price })
   }
+  /** Close a position (full, or partial via lots). Passing a pending-order ticket cancels it. */
   orderClose(account, ticket, { lots, slippage } = {}) {
     return this.#get('/v1/OrderCloseTask', { id: account, ticket, lots, slippage })
   }
+  /** Cancel (delete) a pending order by ticket. */
+  orderCancel(account, ticket) { return this.#get('/v1/OrderCancelTask', { id: account, ticket }) }
 
   // -- history & analytics --------------------------------------------------
   orderHistory(account) { return this.#get('/v1/OrderHistory', { id: account }) }
